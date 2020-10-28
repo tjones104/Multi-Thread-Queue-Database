@@ -8,6 +8,7 @@ import psycopg2
 import sys
 import threading
 import random
+from random import randrange
 import time
 import string
 from re import search
@@ -18,47 +19,50 @@ import queue
 shutdown_event = threading.Event()
 
 # Thread def
-def ins(threadid, work):
-    # Queue Empty? Exit Thread.
-    if work.empty() == True:
-        sys.exit("the Queue is empty!")
-    try:
-        #Open connection
-        with open('password.txt') as f:
-            lines = [line.rstrip() for line in f]
+class worker(threading.Thread):
+
+    def __init__(self, threadid, queue):
+        threading.Thread.__init__(self)
+        self.work=queue
+        self.id=threadid
+
+    def run(self):
+
+        for item in iter(self.work.get, None): # This will call self.work.get() until None is returned, at which point the loop will break.
+            #Open connection
+            with open('password.txt') as f:
+                lines = [line.rstrip() for line in f]
+                
+            username = lines[0]
+            pg_password = lines[1]
+
+            conn = psycopg2.connect(database = "COSC3380", user = username, password = pg_password)
+            conn.autocommit = True
+            cursor = conn.cursor()
+
+            #Split line from queue
+            x = item.split(',')
+            pId = (x[0])
+            fId = (x[1])
             
-        username = lines[0]
-        pg_password = lines[1]
+            print("pId:", pId)
+            print("fId:", fId)
 
-        conn = psycopg2.connect(database = "COSC3380", user = username, password = pg_password)
-        conn.autocommit = True
-        cursor = conn.cursor()
-
-        #Split line from queue
-        x = work.get().split(',')
-        pId = (x[0])
-        fId = (x[1])
-        
-        print(pId)
-        print(fId)
-
-        #Inserting
-        cursor.execute("INSERT INTO bookings \
-                        VALUES ('{}',current_timestamp, '300') \
-                        RETURNING book_ref;".format(threadid))
-        r = str(cursor.fetchall()[0][0])
-        print(r)
+            #Inserting
+            cursor.execute("INSERT INTO bookings \
+                            VALUES ('{}',current_timestamp, '300') \
+                            RETURNING book_ref;".format(randrange(100000,999999)))
+            r = str(cursor.fetchall()[0][0])
+            print(r)
 
 
-        #Updating
+            #Updating
 
 
 
-        #Queue Done
-        work.task_done()
-    except:
-        print("Failed to operate on job")
-
+            #Queue Done
+            self.work.task_done()
+        self.work.task_done()
 
 
 def main():
@@ -92,21 +96,15 @@ def main():
         lines.remove("") 
 
     work = queue.Queue()
+    
 
-    for line in lines:
-        work.put(line)
-    
-    if (len(lines) > threadsNum):
-        print("\nInsufficient Threads, at least {} Threads needed\n".format(len(lines)))
-        exit()
-    
     # Hold threads
     threads = []
     threadId = 1
 
     # Loop/create/start threads
     for x in range(threadsNum):
-        t = threading.Thread(target=ins, args=(threadId, work,))
+        t = worker(threadId, work)
         t.setDaemon(True)
         t.start()
         threads.append(t)
@@ -114,18 +112,29 @@ def main():
 
     print("Waiting for threads to complete...")
 
-    # Join Threads and Queue, Clean up
-    try:
-        for i in threads:
-            i.join(timeout=1.0)
-    except (KeyboardInterrupt, SystemExit):
-        print("Caught Ctrl-C. Cleaning up. Exiting.")
-        shutdown_event.set()
+
+
+    for line in lines:
+        work.put(line)
+
+    for i in range(threadsNum):  # Shut down all the workers
+        work.put(None)
+
 
     work.join()
 
 
 
-    
+
+
+"""     # Join Threads and Queue, Clean up
+    try:
+        for i in threads:
+            i.join(timeout=1.0)
+    except (KeyboardInterrupt, SystemExit):
+        print("Caught Ctrl-C. Cleaning up. Exiting.")
+        shutdown_event.set() 
+        
+"""
 
 main()
