@@ -34,10 +34,8 @@ def ins(threadid=1):
 
 
     cursor.execute("INSERT INTO bookings \
-                    VALUES ('{}',current_timestamp, '2');".format(threadid))
-    
-    
-    cursor.execute("SELECT book_date FROM bookings ORDER BY book_date DESC LIMIT 1;")
+                    VALUES ('{}',current_timestamp, '2') \
+                    RETURNING book_date;".format(threadid))
     r = str(cursor.fetchall()[0][0])
     print(r)
 
@@ -108,7 +106,7 @@ def main():
     threadId = 1
 
     # Loop/create/start threads
-    for x in range(2):
+    for x in range(10):
         t = threading.Thread(target=ins, args=(threadId,))
         t.start()
         threads.append(t)
