@@ -96,9 +96,10 @@ def main():
     for line in lines:
         work.put(line)
     
-    """ if (len(lines) < threadsNum):
-        threadsNum = len(lines) """
-
+    if (len(lines) > threadsNum):
+        print("\nInsufficient Threads, at least {} Threads needed\n".format(len(lines)))
+        exit()
+    
     # Hold threads
     threads = []
     threadId = 1
