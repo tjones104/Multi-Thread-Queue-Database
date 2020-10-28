@@ -21,10 +21,9 @@ shutdown_event = threading.Event()
 # Thread def
 class worker(threading.Thread):
 
-    def __init__(self, threadid, queue):
+    def __init__(self, queue):
         threading.Thread.__init__(self)
         self.work=queue
-        self.id=threadid
 
     def run(self):
 
@@ -104,7 +103,7 @@ def main():
 
     # Loop/create/start threads
     for x in range(threadsNum):
-        t = worker(threadId, work)
+        t = worker(work)
         t.setDaemon(True)
         t.start()
         threads.append(t)
