@@ -44,8 +44,8 @@ class worker(threading.Thread):
             pId = (x[0])
             fId = (x[1])
             
-            print("pId:", pId)
-            print("fId:", fId)
+            #print("pId:", pId)
+            #print("fId:", fId)
             
             tempBook_ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
             tempTicket_no = randrange(1000000000000,9999999999999)
@@ -55,34 +55,42 @@ class worker(threading.Thread):
                             VALUES ('{}',current_timestamp, '300') \
                             RETURNING book_ref;".format(tempBook_ref))
             r = str(cursor.fetchall()[0][0])
-            print(r)
+            #print(r)
             
             #Checking for valid flight
-            cursor.execute("SELECT seats_available FROM flights WHERE flight_id = {};".format(fId))
-            r = cursor.fetchone()
-            cursor.execute("SELECT seats_booked FROM flights WHERE flight_id = {};".format(fId))
-            s = cursor.fetchone()
-            if int(list(r)[0]) > 0:
-                updatedSeats = int(list(r)[0]) - 1
-                updatedBooked = int(list(s)[0]) + 1
-                print(updatedSeats)
-                print(updatedBooked)
-                
+            
+            cursor.execute("UPDATE flights \
+                            SET seats_available = seats_available - 1 \
+                            WHERE flight_id = '{}' RETURNING seats_available".format(fId))
+            r = str(cursor.fetchall()[0][0])
+            if (int(r) < 0):
+                print("No more seats")
+                cursor.execute("UPDATE flights \
+                                SET seats_available = seats_available + 1 \
+                                WHERE flight_id = '{}'".format(fId))
+                cursor.execute("UPDATE bookings \
+                                SET total_amount = 0 \
+                                WHERE book_ref = '{}';".format(tempBook_ref))
+            else:
+                #print("{} Seats Available".format(r))
                 cursor.execute("INSERT INTO ticket \
                                 VALUES ({},'{}',{},' ',' ',' ') \
                                 RETURNING ticket_no;".format(tempTicket_no,tempBook_ref,pId))
                 r = str(cursor.fetchall()[0][0])
-                print(r)
+                #print(r)
                 cursor.execute("INSERT INTO ticket_flights \
-                                VALUES ({},{},'Economy','20') \
+                                VALUES ({},{},'Economy','300') \
                                 RETURNING ticket_no;".format(tempTicket_no,fId))
                 r = str(cursor.fetchall()[0][0])
-                print(r)
-                updateSeats = "UPDATE flights SET seats_available = '{}' WHERE flight_id = '{}'".format(updatedSeats,fId)
-                cursor.execute(updateSeats)
-                updateBooked = "UPDATE flights SET seats_booked = '{}' WHERE flight_id = '{}'".format(updatedBooked,fId)
+                #print(r)
+                updateBooked = "UPDATE flights \
+                                SET seats_booked = seats_booked + 1 \
+                                WHERE flight_id = '{}'".format(fId)
                 cursor.execute(updateBooked)
-                conn.commit()
+            
+
+
+
 
 
             #Updating
@@ -139,8 +147,7 @@ def main():
         threads.append(t)
         threadId += 1
 
-    print("Waiting for threads to complete...")
-
+   
 
 
     for line in lines:
