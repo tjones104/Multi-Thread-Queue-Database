@@ -46,13 +46,43 @@ class worker(threading.Thread):
             
             print("pId:", pId)
             print("fId:", fId)
-
+            
+            tempBook_ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            tempTicket_no = randrange(1000000000000,9999999999999)
+            
             #Inserting
             cursor.execute("INSERT INTO bookings \
                             VALUES ('{}',current_timestamp, '300') \
-                            RETURNING book_ref;".format(randrange(100000,999999)))
+                            RETURNING book_ref;".format(tempBook_ref))
             r = str(cursor.fetchall()[0][0])
             print(r)
+            
+            #Checking for valid flight
+            cursor.execute("SELECT seats_available FROM flights WHERE flight_id = {};".format(fId))
+            r = cursor.fetchone()
+            cursor.execute("SELECT seats_booked FROM flights WHERE flight_id = {};".format(fId))
+            s = cursor.fetchone()
+            if int(list(r)[0]) > 0:
+                updatedSeats = int(list(r)[0]) - 1
+                updatedBooked = int(list(s)[0]) + 1
+                print(updatedSeats)
+                print(updatedBooked)
+                
+                cursor.execute("INSERT INTO ticket \
+                                VALUES ({},'{}',{},' ',' ',' ') \
+                                RETURNING ticket_no;".format(tempTicket_no,tempBook_ref,pId))
+                r = str(cursor.fetchall()[0][0])
+                print(r)
+                cursor.execute("INSERT INTO ticket_flights \
+                                VALUES ({},{},'Economy','20') \
+                                RETURNING ticket_no;".format(tempTicket_no,fId))
+                r = str(cursor.fetchall()[0][0])
+                print(r)
+                updateSeats = "UPDATE flights SET seats_available = '{}' WHERE flight_id = '{}'".format(updatedSeats,fId)
+                cursor.execute(updateSeats)
+                updateBooked = "UPDATE flights SET seats_booked = '{}' WHERE flight_id = '{}'".format(updatedBooked,fId)
+                cursor.execute(updateBooked)
+                conn.commit()
 
 
             #Updating
