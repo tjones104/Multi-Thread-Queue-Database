@@ -17,15 +17,24 @@ import queue
 
 # For use in signaling
 shutdown_event = threading.Event()
+nSuccessful = 0
+nUnsuccessful = 0
+nTicketUpdated = 0
+nTicketFlightsUpdates = 0
+nBookingsUpdated = 0
+nFlightsUpdated = 0
+    
 
+            
 # Thread def
 class worker(threading.Thread):
-
+    
     def __init__(self, queue):
         threading.Thread.__init__(self)
         self.work=queue
 
     def run(self):
+        
 
         for item in iter(self.work.get, None): # This will call self.work.get() until None is returned, at which point the loop will break.
             #Open connection
@@ -38,7 +47,7 @@ class worker(threading.Thread):
             conn = psycopg2.connect(database = "COSC3380", user = username, password = pg_password)
             conn.autocommit = True
             cursor = conn.cursor()
-
+            
             #Split line from queue
             x = item.split(',')
             pId = (x[0])
@@ -55,6 +64,7 @@ class worker(threading.Thread):
                             VALUES ('{}',current_timestamp, '300') \
                             RETURNING book_ref;".format(tempBook_ref))
             r = str(cursor.fetchall()[0][0])
+            
             #print(r)
             
             #Checking for valid flight
@@ -63,14 +73,17 @@ class worker(threading.Thread):
                             SET seats_available = seats_available - 1 \
                             WHERE flight_id = '{}' RETURNING seats_available".format(fId))
             r = str(cursor.fetchall()[0][0])
+            
             if (int(r) < 0):
-                print("No more seats")
+                #print("No more seats")
                 cursor.execute("UPDATE flights \
                                 SET seats_available = seats_available + 1 \
                                 WHERE flight_id = '{}'".format(fId))
                 cursor.execute("UPDATE bookings \
                                 SET total_amount = 0 \
                                 WHERE book_ref = '{}';".format(tempBook_ref))
+                global nUnsuccessful
+                nUnsuccessful += 1
             else:
                 #print("{} Seats Available".format(r))
                 cursor.execute("INSERT INTO ticket \
@@ -87,6 +100,9 @@ class worker(threading.Thread):
                                 SET seats_booked = seats_booked + 1 \
                                 WHERE flight_id = '{}'".format(fId)
                 cursor.execute(updateBooked)
+                global nSuccessful
+                nSuccessful += 1
+       
             
 
 
@@ -100,6 +116,7 @@ class worker(threading.Thread):
             #Queue Done
             self.work.task_done()
         self.work.task_done()
+    
 
 
 def main():
@@ -160,7 +177,8 @@ def main():
     work.join()
 
 
-
+    print("Successful transactions: " + str(nSuccessful))
+    print("Unsuccessful transactions: " + str(nUnsuccessful))
 
 
 """     # Join Threads and Queue, Clean up
