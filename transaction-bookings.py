@@ -30,9 +30,10 @@ nFailed = 0
 # Thread def
 class worker(threading.Thread):
     
-    def __init__(self, queue):
+    def __init__(self, queue, t_state):
         threading.Thread.__init__(self)
         self.work=queue
+        self.t_state=t_state
 
     def run(self):
         
@@ -46,7 +47,10 @@ class worker(threading.Thread):
             pg_password = lines[1]
 
             conn = psycopg2.connect(database = "COSC3380", user = username, password = pg_password)
-            conn.autocommit = True
+            if(self.t_state == 'n'):
+                conn.autocommit = True
+            else:
+                conn.autocommit = False
             cursor = conn.cursor()
             
             #Split line from queue
@@ -54,6 +58,10 @@ class worker(threading.Thread):
             pId = (x[0])
             fId = (x[1])
             
+            
+            if(self.t_state == 'y'):
+                cursor.execute("START TRANSACTION;")
+
             cursor.execute("SELECT COUNT(1) \
                             FROM flights \
                             WHERE flight_id = {};".format(fId))
@@ -89,6 +97,8 @@ class worker(threading.Thread):
                                     WHERE book_ref = '{}';".format(tempBook_ref))
                     global nUnsuccessful
                     nUnsuccessful += 1
+                    if(self.t_state == 'y'):
+                        cursor.execute("COMMIT;")
 
                 else:
                     #print("{} Seats Available".format(r))
@@ -118,18 +128,8 @@ class worker(threading.Thread):
 
                     global nSuccessful
                     nSuccessful += 1
-                    
-                    
-                    
-
-        
-                
-
-
-
-
-
-                #Updating
+                    if(self.t_state == 'y'):
+                        cursor.execute("COMMIT;")
 
 
 
@@ -138,7 +138,10 @@ class worker(threading.Thread):
             else:
                 global nFailed
                 nFailed += 1
+            if(self.t_state == 'y'):
+                conn.commit()
         self.work.task_done()
+        
     
 
 
@@ -156,11 +159,7 @@ def main():
     threadsNum=argv[equalPos[2] + 1:]
     threadsNum = int(threadsNum)
     
-    """ print("\n")
-    print(argv)
-    print("Transaction =",transaction)
-    print("Threads =",threadsNum)
-    print("\n") """
+
 
     # Seperating the lines
     with open(txt) as f:
@@ -181,7 +180,7 @@ def main():
 
     # Loop/create/start threads
     for x in range(threadsNum):
-        t = worker(work)
+        t = worker(work, transaction)
         t.setDaemon(True)
         t.start()
         threads.append(t)
