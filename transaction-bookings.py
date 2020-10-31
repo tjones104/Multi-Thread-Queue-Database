@@ -23,6 +23,7 @@ nTicketUpdated = 0
 nTicketFlightsUpdates = 0
 nBookingsUpdated = 0
 nFlightsUpdated = 0
+nFailed = 0
     
 
             
@@ -53,68 +54,90 @@ class worker(threading.Thread):
             pId = (x[0])
             fId = (x[1])
             
-            #print("pId:", pId)
-            #print("fId:", fId)
-            
-            tempBook_ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-            tempTicket_no = randrange(1000000000000,9999999999999)
-            
-            #Inserting
-            cursor.execute("INSERT INTO bookings \
-                            VALUES ('{}',current_timestamp, '300') \
-                            RETURNING book_ref;".format(tempBook_ref))
+            cursor.execute("SELECT COUNT(1) \
+                            FROM flights \
+                            WHERE flight_id = {};".format(fId))
             r = str(cursor.fetchall()[0][0])
-            
-            #print(r)
-            
-            #Checking for valid flight
-            
-            cursor.execute("UPDATE flights \
-                            SET seats_available = seats_available - 1 \
-                            WHERE flight_id = '{}' RETURNING seats_available".format(fId))
-            r = str(cursor.fetchall()[0][0])
-            
-            if (int(r) < 0):
-                #print("No more seats")
+            if(int(r) == 1):
+
+                tempBook_ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                tempTicket_no = randrange(1000000000000,9999999999999)
+                
+                #Inserting
+                cursor.execute("INSERT INTO bookings \
+                                VALUES ('{}',current_timestamp, '300') \
+                                RETURNING book_ref;".format(tempBook_ref))
+                r = str(cursor.fetchall()[0][0])
+                global nBookingsUpdated
+                nBookingsUpdated += 1
+                #print(r)
+                
+                #Checking for valid flight
+                
                 cursor.execute("UPDATE flights \
-                                SET seats_available = seats_available + 1 \
-                                WHERE flight_id = '{}'".format(fId))
-                cursor.execute("UPDATE bookings \
-                                SET total_amount = 0 \
-                                WHERE book_ref = '{}';".format(tempBook_ref))
-                global nUnsuccessful
-                nUnsuccessful += 1
+                                SET seats_available = seats_available - 1 \
+                                WHERE flight_id = '{}' RETURNING seats_available".format(fId))
+                r = str(cursor.fetchall()[0][0])
+                
+                if (int(r) < 0):
+                    #print("No more seats")
+                    cursor.execute("UPDATE flights \
+                                    SET seats_available = seats_available + 1 \
+                                    WHERE flight_id = '{}'".format(fId))
+                    cursor.execute("UPDATE bookings \
+                                    SET total_amount = 0 \
+                                    WHERE book_ref = '{}';".format(tempBook_ref))
+                    global nUnsuccessful
+                    nUnsuccessful += 1
+
+                else:
+                    #print("{} Seats Available".format(r))
+                    cursor.execute("INSERT INTO ticket \
+                                    VALUES ({},'{}',{},' ',' ',' ') \
+                                    RETURNING ticket_no;".format(tempTicket_no,tempBook_ref,pId))
+                    r = str(cursor.fetchall()[0][0])
+                    #print(r)
+                    global nTicketUpdated
+                    nTicketUpdated += 1
+
+                    cursor.execute("INSERT INTO ticket_flights \
+                                    VALUES ({},{},'Economy','300') \
+                                    RETURNING ticket_no;".format(tempTicket_no,fId))
+                    r = str(cursor.fetchall()[0][0])
+                    #print(r)
+                    global nTicketFlightsUpdates
+                    nTicketFlightsUpdates += 1
+
+                    updateBooked = "UPDATE flights \
+                                    SET seats_booked = seats_booked + 1 \
+                                    WHERE flight_id = '{}'".format(fId)
+                    cursor.execute(updateBooked)
+                    global nFlightsUpdated
+                    nFlightsUpdated += 1
+
+
+                    global nSuccessful
+                    nSuccessful += 1
+                    
+                    
+                    
+
+        
+                
+
+
+
+
+
+                #Updating
+
+
+
+                #Queue Done
+                self.work.task_done()
             else:
-                #print("{} Seats Available".format(r))
-                cursor.execute("INSERT INTO ticket \
-                                VALUES ({},'{}',{},' ',' ',' ') \
-                                RETURNING ticket_no;".format(tempTicket_no,tempBook_ref,pId))
-                r = str(cursor.fetchall()[0][0])
-                #print(r)
-                cursor.execute("INSERT INTO ticket_flights \
-                                VALUES ({},{},'Economy','300') \
-                                RETURNING ticket_no;".format(tempTicket_no,fId))
-                r = str(cursor.fetchall()[0][0])
-                #print(r)
-                updateBooked = "UPDATE flights \
-                                SET seats_booked = seats_booked + 1 \
-                                WHERE flight_id = '{}'".format(fId)
-                cursor.execute(updateBooked)
-                global nSuccessful
-                nSuccessful += 1
-       
-            
-
-
-
-
-
-            #Updating
-
-
-
-            #Queue Done
-            self.work.task_done()
+                global nFailed
+                nFailed += 1
         self.work.task_done()
     
 
@@ -166,29 +189,39 @@ def main():
 
    
 
-
+    #print("Got here 1")
     for line in lines:
         work.put(line)
-
+    #print("Got here 2")
     for i in range(threadsNum):  # Shut down all the workers
         work.put(None)
 
-
-    work.join()
-
-
-    print("Successful transactions: " + str(nSuccessful))
-    print("Unsuccessful transactions: " + str(nUnsuccessful))
-
-
-"""     # Join Threads and Queue, Clean up
+    #print("Got here 3")
+    # Join Threads and Queue, Clean up
     try:
         for i in threads:
             i.join(timeout=1.0)
     except (KeyboardInterrupt, SystemExit):
         print("Caught Ctrl-C. Cleaning up. Exiting.")
         shutdown_event.set() 
+    #print("Got here 4")
+
+    
+    nUnsuccessful = nBookingsUpdated - nTicketUpdated
+
+    print("Failed transactions: " + str(nFailed))
+    print("Successful transactions: " + str(nSuccessful))
+    print("Unsuccessful transactions: " + str(nUnsuccessful))
+    print("Records updated for table ticket: " + str(nTicketUpdated))
+    print("Records updated for table ticket flights: " + str(nTicketFlightsUpdates))
+    print("Records updated for table bookings: " + str(nBookingsUpdated))
+    print("Records updated for table flights: " + str(nFlightsUpdated))
+
+
+
+   
+    
         
-"""
+
 
 main()
