@@ -30,13 +30,14 @@ nFailed = 0
 # Thread def
 class worker(threading.Thread):
     
-    def __init__(self, queue, t_state):
+    def __init__(self, queue, t_state, threadId):
         threading.Thread.__init__(self)
         self.work=queue
         self.t_state=t_state
+        self.id = threadId
 
     def run(self):
-        
+        counter = 0
 
         for item in iter(self.work.get, None): # This will call self.work.get() until None is returned, at which point the loop will break.
             #Open connection
@@ -58,6 +59,7 @@ class worker(threading.Thread):
             pId = (x[0])
             fId = (x[1])
             
+            counter += 1
             
             if(self.t_state == 'y'):
                 cursor.execute("START TRANSACTION;")
@@ -141,6 +143,7 @@ class worker(threading.Thread):
             if(self.t_state == 'y'):
                 conn.commit()
         self.work.task_done()
+        print("ID {}: Did {} jobs".format(self.id, counter))
         
     
 
@@ -180,7 +183,7 @@ def main():
 
     # Loop/create/start threads
     for x in range(threadsNum):
-        t = worker(work, transaction)
+        t = worker(work, transaction, threadId)
         t.setDaemon(True)
         t.start()
         threads.append(t)
@@ -205,8 +208,6 @@ def main():
         shutdown_event.set() 
     #print("Got here 4")
 
-    
-    nUnsuccessful = nBookingsUpdated - nTicketUpdated
 
     print("Failed transactions: " + str(nFailed))
     print("Successful transactions: " + str(nSuccessful))
