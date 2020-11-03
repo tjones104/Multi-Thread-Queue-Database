@@ -61,6 +61,8 @@ class worker(threading.Thread):
             # Empty Check
             if pId.isnumeric() == False:
                 pId = None
+            if len(pId) > 20:
+                pId = None
             if not pId:
                 pId = None
 
