@@ -1,0 +1,5 @@
+Name: Tristan Jones
+PSID: 1486089
+
+To run use command:
+python3 checkdb.py database=dbxyz.txt 
