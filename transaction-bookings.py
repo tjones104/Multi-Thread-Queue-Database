@@ -1,5 +1,4 @@
-# Tristan Jones
-# PS:1486089
+# Multithread Transaction Database
 # Hw3
 
 # python3 transaction-bookings.py "input=trans.txt;transaction=y;threads=10"
@@ -89,7 +88,7 @@ class worker(threading.Thread):
                 # Inserting
                 cursor.execute("INSERT INTO bookings \
                                 VALUES ('{}',current_timestamp, '300');".format(tempBook_ref))
-                sqlFile.write("INSERT INTO bookings \nVALUES ('{}',current_timestamp, '300') \nRETURNING book_ref;\n\n".format(tempBook_ref))
+                sqlFile.write("INSERT INTO bookings \nVALUES ('{}',current_timestamp, '300');\n\n".format(tempBook_ref))
                 global nBookingsUpdated
                 nBookingsUpdated += 1
              
@@ -98,7 +97,7 @@ class worker(threading.Thread):
                 cursor.execute("UPDATE flights \
                                 SET seats_available = seats_available - 1 \
                                 WHERE flight_id = '{}' RETURNING seats_available".format(fId))
-                sqlFile.write("UPDATE flights \nSET seats_available = seats_available - 1 \nWHERE flight_id = '{}' RETURNING seats_available\n\n".format(fId))
+                sqlFile.write("UPDATE flights \nSET seats_available = seats_available - 1 \nWHERE flight_id = '{}'\nRETURNING seats_available\n\n".format(fId))
                 r = str(cursor.fetchall()[0][0])
 
                 if (int(r) < 0):
@@ -117,15 +116,16 @@ class worker(threading.Thread):
                         sqlFile.write("COMMIT;\n\n")
 
                 else:
+                    # Inserting and updating
                     cursor.execute("INSERT INTO ticket \
                                     VALUES ({},'{}',{}, NULL, NULL, NULL);".format(tempTicket_no, tempBook_ref, pId))
-                    sqlFile.write("INSERT INTO ticket \nVALUES ({},'{}',{},' ',' ',' ') \nRETURNING ticket_no;\n\n".format(tempTicket_no,tempBook_ref,pId))
+                    sqlFile.write("INSERT INTO ticket \nVALUES ({},'{}',{}, NULL, NULL, NULL);\n\n".format(tempTicket_no,tempBook_ref,pId))
                     global nTicketUpdated
                     nTicketUpdated += 1
 
                     cursor.execute("INSERT INTO ticket_flights \
                                     VALUES ({},{},'Economy','300');".format(tempTicket_no, fId))
-                    sqlFile.write("INSERT INTO ticket_flights \nVALUES ({},{},'Economy','300') \nRETURNING ticket_no;\n\n".format(tempTicket_no,fId))
+                    sqlFile.write("INSERT INTO ticket_flights \nVALUES ({},{},'Economy','300');\n\n".format(tempTicket_no,fId))
                     global nTicketFlightsUpdates
                     nTicketFlightsUpdates += 1
 
@@ -208,6 +208,6 @@ def main():
     print("Records updated for table ticket flights: " + str(nTicketFlightsUpdates))
     print("Records updated for table bookings: " + str(nBookingsUpdated))
     print("Records updated for table flights: " + str(nFlightsUpdated))
-
+    sqlFile.close()
 
 main()
