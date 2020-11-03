@@ -26,6 +26,7 @@ nTicketFlightsUpdates = 0
 nBookingsUpdated = 0
 nFlightsUpdated = 0
 
+sqlFile = open("sqlStatements.sql","w+")
 
 # Thread def
 class worker(threading.Thread):
@@ -60,8 +61,6 @@ class worker(threading.Thread):
             # Empty Check
             if pId.isnumeric() == False:
                 pId = None
-            if len(pId) > 20:
-                pId = None
             if not pId:
                 pId = None
 
@@ -73,10 +72,12 @@ class worker(threading.Thread):
 
             if(self.t_state == 'y'):
                 cursor.execute("START TRANSACTION;")
+                sqlFile.write("START TRANSACTION;\n\n")
 
             cursor.execute("SELECT COUNT(1) \
                             FROM flights \
                             WHERE flight_id = {};".format(fId))
+            sqlFile.write("SELECT COUNT(1) \nFROM flights \nWHERE flight_id = {};\n\n".format(fId))
             r = str(cursor.fetchall()[0][0])
             if(int(r) == 1 and pId != None):
 
@@ -86,6 +87,7 @@ class worker(threading.Thread):
                 # Inserting
                 cursor.execute("INSERT INTO bookings \
                                 VALUES ('{}',current_timestamp, '300');".format(tempBook_ref))
+                sqlFile.write("INSERT INTO bookings \nVALUES ('{}',current_timestamp, '300') \nRETURNING book_ref;\n\n".format(tempBook_ref))
                 global nBookingsUpdated
                 nBookingsUpdated += 1
              
@@ -94,34 +96,41 @@ class worker(threading.Thread):
                 cursor.execute("UPDATE flights \
                                 SET seats_available = seats_available - 1 \
                                 WHERE flight_id = '{}' RETURNING seats_available".format(fId))
+                sqlFile.write("UPDATE flights \nSET seats_available = seats_available - 1 \nWHERE flight_id = '{}' RETURNING seats_available\n\n".format(fId))
                 r = str(cursor.fetchall()[0][0])
 
                 if (int(r) < 0):
                     cursor.execute("UPDATE flights \
                                     SET seats_available = seats_available + 1 \
                                     WHERE flight_id = '{}'".format(fId))
+                    sqlFile.write("UPDATE flights \nSET seats_available = seats_available + 1 \nWHERE flight_id = '{}'\n\n".format(fId))
                     cursor.execute("UPDATE bookings \
                                     SET total_amount = 0 \
                                     WHERE book_ref = '{}';".format(tempBook_ref))
+                    sqlFile.write("UPDATE bookings \nSET total_amount = 0 \nWHERE book_ref = '{}';\n\n".format(tempBook_ref))
                     global nUnsuccessful
                     nUnsuccessful += 1
                     if(self.t_state == 'y'):
                         cursor.execute("COMMIT;")
+                        sqlFile.write("COMMIT;\n\n")
 
                 else:
                     cursor.execute("INSERT INTO ticket \
                                     VALUES ({},'{}',{}, NULL, NULL, NULL);".format(tempTicket_no, tempBook_ref, pId))
+                    sqlFile.write("INSERT INTO ticket \nVALUES ({},'{}',{},' ',' ',' ') \nRETURNING ticket_no;\n\n".format(tempTicket_no,tempBook_ref,pId))
                     global nTicketUpdated
                     nTicketUpdated += 1
 
                     cursor.execute("INSERT INTO ticket_flights \
                                     VALUES ({},{},'Economy','300');".format(tempTicket_no, fId))
+                    sqlFile.write("INSERT INTO ticket_flights \nVALUES ({},{},'Economy','300') \nRETURNING ticket_no;\n\n".format(tempTicket_no,fId))
                     global nTicketFlightsUpdates
                     nTicketFlightsUpdates += 1
 
                     updateBooked = "UPDATE flights \
                                     SET seats_booked = seats_booked + 1 \
                                     WHERE flight_id = '{}'".format(fId)
+                    sqlFile.write("UPDATE flights \nSET seats_booked = seats_booked + 1 \nWHERE flight_id = '{}'\n\n".format(fId))
                     cursor.execute(updateBooked)
                     global nFlightsUpdated
                     nFlightsUpdated += 1
@@ -130,6 +139,7 @@ class worker(threading.Thread):
                     nSuccessful += 1
                     if(self.t_state == 'y'):
                         cursor.execute("COMMIT;")
+                        sqlFile.write("COMMIT;\n\n")
 
                 # Queue Done
                 self.work.task_done()
