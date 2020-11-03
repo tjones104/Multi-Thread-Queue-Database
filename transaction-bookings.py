@@ -1,8 +1,8 @@
-#Tristan Jones
-#PS:1486089
-#Hw3
+# Tristan Jones
+# PS:1486089
+# Hw3
 
-#python3 transaction-bookings.py "input=trans.txt;transaction=y;threads=10"
+# python3 transaction-bookings.py "input=trans.txt;transaction=y;threads=10"
 
 import psycopg2
 import sys
@@ -17,50 +17,58 @@ import queue
 
 # For use in signaling
 shutdown_event = threading.Event()
+
+# Global Counters
 nSuccessful = 0
 nUnsuccessful = 0
 nTicketUpdated = 0
 nTicketFlightsUpdates = 0
 nBookingsUpdated = 0
 nFlightsUpdated = 0
-nFailed = 0
-    
 
-            
+
 # Thread def
 class worker(threading.Thread):
-    
+
     def __init__(self, queue, t_state, threadId):
         threading.Thread.__init__(self)
-        self.work=queue
-        self.t_state=t_state
+        self.work = queue
+        self.t_state = t_state
         self.id = threadId
 
     def run(self):
-        counter = 0
-
-        for item in iter(self.work.get, None): # This will call self.work.get() until None is returned, at which point the loop will break.
-            #Open connection
+        for item in iter(self.work.get, None):
+            # Open connection
             with open('password.txt') as f:
                 lines = [line.rstrip() for line in f]
-                
+
             username = lines[0]
             pg_password = lines[1]
 
-            conn = psycopg2.connect(database = "COSC3380", user = username, password = pg_password)
+            conn = psycopg2.connect(database="COSC3380", user=username, password=pg_password)
             if(self.t_state == 'n'):
                 conn.autocommit = True
             else:
                 conn.autocommit = False
             cursor = conn.cursor()
-            
-            #Split line from queue
+
+            # Split line from queue
             x = item.split(',')
             pId = (x[0])
             fId = (x[1])
-            
-            counter += 1
-            
+
+            # Empty Check
+            if pId.isnumeric() == False:
+                pId = None
+            if not pId:
+                pId = None
+
+            if fId.isnumeric() == False:
+                fId = '999999999'
+            if not fId:
+                fId = '999999999'
+
+
             if(self.t_state == 'y'):
                 cursor.execute("START TRANSACTION;")
 
@@ -68,29 +76,25 @@ class worker(threading.Thread):
                             FROM flights \
                             WHERE flight_id = {};".format(fId))
             r = str(cursor.fetchall()[0][0])
-            if(int(r) == 1):
+            if(int(r) == 1 and pId != None):
 
                 tempBook_ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-                tempTicket_no = randrange(1000000000000,9999999999999)
-                
-                #Inserting
+                tempTicket_no = randrange(1000000000000, 9999999999999)
+
+                # Inserting
                 cursor.execute("INSERT INTO bookings \
-                                VALUES ('{}',current_timestamp, '300') \
-                                RETURNING book_ref;".format(tempBook_ref))
-                r = str(cursor.fetchall()[0][0])
+                                VALUES ('{}',current_timestamp, '300');".format(tempBook_ref))
                 global nBookingsUpdated
                 nBookingsUpdated += 1
-                #print(r)
-                
-                #Checking for valid flight
-                
+             
+
+                # Checking for valid flight
                 cursor.execute("UPDATE flights \
                                 SET seats_available = seats_available - 1 \
                                 WHERE flight_id = '{}' RETURNING seats_available".format(fId))
                 r = str(cursor.fetchall()[0][0])
-                
+
                 if (int(r) < 0):
-                    #print("No more seats")
                     cursor.execute("UPDATE flights \
                                     SET seats_available = seats_available + 1 \
                                     WHERE flight_id = '{}'".format(fId))
@@ -103,20 +107,13 @@ class worker(threading.Thread):
                         cursor.execute("COMMIT;")
 
                 else:
-                    #print("{} Seats Available".format(r))
                     cursor.execute("INSERT INTO ticket \
-                                    VALUES ({},'{}',{},' ',' ',' ') \
-                                    RETURNING ticket_no;".format(tempTicket_no,tempBook_ref,pId))
-                    r = str(cursor.fetchall()[0][0])
-                    #print(r)
+                                    VALUES ({},'{}',{}, NULL, NULL, NULL);".format(tempTicket_no, tempBook_ref, pId))
                     global nTicketUpdated
                     nTicketUpdated += 1
 
                     cursor.execute("INSERT INTO ticket_flights \
-                                    VALUES ({},{},'Economy','300') \
-                                    RETURNING ticket_no;".format(tempTicket_no,fId))
-                    r = str(cursor.fetchall()[0][0])
-                    #print(r)
+                                    VALUES ({},{},'Economy','300');".format(tempTicket_no, fId))
                     global nTicketFlightsUpdates
                     nTicketFlightsUpdates += 1
 
@@ -127,55 +124,41 @@ class worker(threading.Thread):
                     global nFlightsUpdated
                     nFlightsUpdated += 1
 
-
                     global nSuccessful
                     nSuccessful += 1
                     if(self.t_state == 'y'):
                         cursor.execute("COMMIT;")
 
-
-
-                #Queue Done
+                # Queue Done
                 self.work.task_done()
-            else:
-                global nFailed
-                nFailed += 1
             if(self.t_state == 'y'):
                 conn.commit()
         self.work.task_done()
-        print("ID {}: Did {} jobs".format(self.id, counter))
-        
-    
 
 
 def main():
 
-
     # Seperating command line
-    argv=sys.argv[1]
+    argv = sys.argv[1]
 
     equalPos = [m.start() for m in re.finditer('=', argv)]
     colonPos = [m.start() for m in re.finditer(';', argv)]
 
-    txt=argv[equalPos[0] + 1:colonPos[0]]
-    transaction=argv[equalPos[1] + 1:colonPos[1]]
-    threadsNum=argv[equalPos[2] + 1:]
+    txt = argv[equalPos[0] + 1:colonPos[0]]
+    transaction = argv[equalPos[1] + 1:colonPos[1]]
+    threadsNum = argv[equalPos[2] + 1:]
     threadsNum = int(threadsNum)
-    
-
 
     # Seperating the lines
     with open(txt) as f:
         next(f)
         lines = [line.rstrip() for line in f]
 
-
     # Inserting lines into queue for threads
-    while("" in lines) : 
-        lines.remove("") 
+    while("" in lines):
+        lines.remove("")
 
     work = queue.Queue()
-    
 
     # Hold threads
     threads = []
@@ -189,39 +172,28 @@ def main():
         threads.append(t)
         threadId += 1
 
-   
 
-    #print("Got here 1")
     for line in lines:
         work.put(line)
-    #print("Got here 2")
-    for i in range(threadsNum):  # Shut down all the workers
+
+    # Shut down all the workers
+    for i in range(threadsNum):  
         work.put(None)
 
-    #print("Got here 3")
-    # Join Threads and Queue, Clean up
+    # Join Threads and Queue, Clean up if Ctrl-C
     try:
         for i in threads:
             i.join(timeout=1.0)
     except (KeyboardInterrupt, SystemExit):
-        print("Caught Ctrl-C. Cleaning up. Exiting.")
-        shutdown_event.set() 
-    #print("Got here 4")
+        print("\nUser Manual Ctrl-C Caught. Cleaning up. Exiting.")
+        shutdown_event.set()
 
-
-    print("Failed transactions: " + str(nFailed))
     print("Successful transactions: " + str(nSuccessful))
     print("Unsuccessful transactions: " + str(nUnsuccessful))
     print("Records updated for table ticket: " + str(nTicketUpdated))
     print("Records updated for table ticket flights: " + str(nTicketFlightsUpdates))
     print("Records updated for table bookings: " + str(nBookingsUpdated))
     print("Records updated for table flights: " + str(nFlightsUpdated))
-
-
-
-   
-    
-        
 
 
 main()
