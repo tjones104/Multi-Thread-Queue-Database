@@ -25,7 +25,7 @@ nTicketFlightsUpdates = 0
 nBookingsUpdated = 0
 nFlightsUpdated = 0
 
-sqlFile = open("sqlStatements.sql","w+")
+sqlFile = open("transaction-bookings.sql","w+")
 
 # Thread def
 class worker(threading.Thread):
@@ -118,8 +118,8 @@ class worker(threading.Thread):
                 else:
                     # Inserting and updating
                     cursor.execute("INSERT INTO ticket \
-                                    VALUES ({},'{}',{}, NULL, NULL, NULL);".format(tempTicket_no, tempBook_ref, pId))
-                    sqlFile.write("INSERT INTO ticket \nVALUES ({},'{}',{}, NULL, NULL, NULL);\n\n".format(tempTicket_no,tempBook_ref,pId))
+                                    VALUES ({},'{}',{}, '', NULL, NULL);".format(tempTicket_no, tempBook_ref, pId))
+                    sqlFile.write("INSERT INTO ticket \nVALUES ({},'{}',{}, '', NULL, NULL);\n\n".format(tempTicket_no,tempBook_ref,pId))
                     global nTicketUpdated
                     nTicketUpdated += 1
 
@@ -199,8 +199,11 @@ def main():
         for i in threads:
             i.join(timeout=1.0)
     except (KeyboardInterrupt, SystemExit):
-        print("\nUser Manual Ctrl-C Caught. Cleaning up. Exiting.")
+        print("\nUser Manual Ctrl-C Caught. Cleaning up. Closing File. Exiting.")
         shutdown_event.set()
+    finally:
+        if sqlFile:
+            sqlFile.close()
 
     print("Successful transactions: " + str(nSuccessful))
     print("Unsuccessful transactions: " + str(nUnsuccessful))
