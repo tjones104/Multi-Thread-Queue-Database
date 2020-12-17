@@ -1,1 +1,1 @@
-Multi-Thread Queue Insertion and Updating in to Postgresql
+Multi-Thread Queue Insertion and Updating using transactions to Postgresql database
