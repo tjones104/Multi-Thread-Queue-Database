@@ -2,4 +2,4 @@
 
 ## Members
 - Tristan Jones
-- Michael
+- Michael Graver
